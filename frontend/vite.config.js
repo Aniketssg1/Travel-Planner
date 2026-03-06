@@ -13,4 +13,17 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    target: 'es2020',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['vue', 'vue-router', 'pinia'],
+          http: ['axios'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
+  },
 })

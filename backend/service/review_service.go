@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
-	"errors"
 	"math"
 
+	apperrors "backend/errors"
 	"backend/models"
 	"backend/repository"
 
@@ -29,28 +29,25 @@ func NewReviewService(
 func (s *ReviewService) SubmitReview(ctx context.Context, destIDStr, userIDStr string, input models.ReviewInput) (*models.Review, error) {
 	destID, err := primitive.ObjectIDFromHex(destIDStr)
 	if err != nil {
-		return nil, errors.New("invalid destination ID")
+		return nil, apperrors.BadRequest("invalid destination ID")
 	}
 	userID, err := primitive.ObjectIDFromHex(userIDStr)
 	if err != nil {
-		return nil, errors.New("invalid user ID")
+		return nil, apperrors.BadRequest("invalid user ID")
 	}
 
 	_, err = s.destRepo.FindByID(ctx, destID)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, errors.New("destination not found")
+			return nil, apperrors.NotFound("destination not found")
 		}
-		return nil, errors.New("database error")
+		return nil, apperrors.Internal("database error")
 	}
 
 	_, err = s.reviewRepo.FindByUserAndDestination(ctx, userID, destID)
 	if err == nil {
-		return nil, errors.New("you have already reviewed this destination")
+		return nil, apperrors.Conflict("you have already reviewed this destination")
 	}
-
-	user, _ := s.userRepo.FindByEmail(ctx, "")
-	_ = user
 
 	review := models.Review{
 		ID:            primitive.NewObjectID(),
@@ -61,7 +58,7 @@ func (s *ReviewService) SubmitReview(ctx context.Context, destIDStr, userIDStr s
 	}
 
 	if err := s.reviewRepo.Create(ctx, review); err != nil {
-		return nil, errors.New("failed to submit review")
+		return nil, apperrors.Internal("failed to submit review")
 	}
 
 	s.recalcRating(ctx, destID)
@@ -71,24 +68,24 @@ func (s *ReviewService) SubmitReview(ctx context.Context, destIDStr, userIDStr s
 func (s *ReviewService) SubmitReviewWithUserName(ctx context.Context, destIDStr, userIDStr, userName string, input models.ReviewInput) (*models.Review, error) {
 	destID, err := primitive.ObjectIDFromHex(destIDStr)
 	if err != nil {
-		return nil, errors.New("invalid destination ID")
+		return nil, apperrors.BadRequest("invalid destination ID")
 	}
 	userID, err := primitive.ObjectIDFromHex(userIDStr)
 	if err != nil {
-		return nil, errors.New("invalid user ID")
+		return nil, apperrors.BadRequest("invalid user ID")
 	}
 
 	_, err = s.destRepo.FindByID(ctx, destID)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, errors.New("destination not found")
+			return nil, apperrors.NotFound("destination not found")
 		}
-		return nil, errors.New("database error")
+		return nil, apperrors.Internal("database error")
 	}
 
 	_, err = s.reviewRepo.FindByUserAndDestination(ctx, userID, destID)
 	if err == nil {
-		return nil, errors.New("you have already reviewed this destination")
+		return nil, apperrors.Conflict("you have already reviewed this destination")
 	}
 
 	review := models.Review{
@@ -101,7 +98,7 @@ func (s *ReviewService) SubmitReviewWithUserName(ctx context.Context, destIDStr,
 	}
 
 	if err := s.reviewRepo.Create(ctx, review); err != nil {
-		return nil, errors.New("failed to submit review")
+		return nil, apperrors.Internal("failed to submit review")
 	}
 
 	s.recalcRating(ctx, destID)
@@ -111,7 +108,7 @@ func (s *ReviewService) SubmitReviewWithUserName(ctx context.Context, destIDStr,
 func (s *ReviewService) GetAllReviews(ctx context.Context) ([]models.Review, error) {
 	reviews, err := s.reviewRepo.FindAll(ctx)
 	if err != nil {
-		return nil, errors.New("database error")
+		return nil, apperrors.Internal("database error")
 	}
 	return reviews, nil
 }
@@ -119,19 +116,19 @@ func (s *ReviewService) GetAllReviews(ctx context.Context) ([]models.Review, err
 func (s *ReviewService) DeleteReview(ctx context.Context, reviewIDStr string) error {
 	reviewID, err := primitive.ObjectIDFromHex(reviewIDStr)
 	if err != nil {
-		return errors.New("invalid review ID")
+		return apperrors.BadRequest("invalid review ID")
 	}
 
 	review, err := s.reviewRepo.FindByID(ctx, reviewID)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return errors.New("review not found")
+			return apperrors.NotFound("review not found")
 		}
-		return errors.New("database error")
+		return apperrors.Internal("database error")
 	}
 
 	if err := s.reviewRepo.Delete(ctx, reviewID); err != nil {
-		return errors.New("failed to delete review")
+		return apperrors.Internal("failed to delete review")
 	}
 
 	s.recalcRating(ctx, review.DestinationID)

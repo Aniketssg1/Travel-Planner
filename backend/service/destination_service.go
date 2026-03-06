@@ -2,9 +2,10 @@ package service
 
 import (
 	"context"
-	"errors"
+	"regexp"
 	"strconv"
 
+	apperrors "backend/errors"
 	"backend/models"
 	"backend/repository"
 
@@ -12,6 +13,13 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
+
+// regexEscape escapes special regex characters to prevent ReDoS.
+var regexSpecial = regexp.MustCompile(`([.*+?^${}()|[\]\\])`)
+
+func escapeRegex(s string) string {
+	return regexSpecial.ReplaceAllString(s, `\$1`)
+}
 
 type DestinationService struct {
 	destRepo   *repository.DestinationRepository
@@ -47,10 +55,10 @@ func (s *DestinationService) ListDestinations(ctx context.Context, filters ListF
 
 	filter := bson.M{}
 	if filters.Name != "" {
-		filter["name"] = bson.M{"$regex": filters.Name, "$options": "i"}
+		filter["name"] = bson.M{"$regex": escapeRegex(filters.Name), "$options": "i"}
 	}
 	if filters.Country != "" {
-		filter["country"] = bson.M{"$regex": filters.Country, "$options": "i"}
+		filter["country"] = bson.M{"$regex": escapeRegex(filters.Country), "$options": "i"}
 	}
 	if filters.MinRating != "" {
 		rating, err := strconv.ParseFloat(filters.MinRating, 64)
@@ -61,7 +69,7 @@ func (s *DestinationService) ListDestinations(ctx context.Context, filters ListF
 
 	destinations, pagination, err := s.destRepo.FindAll(ctx, filter, page, limit)
 	if err != nil {
-		return nil, errors.New("database error")
+		return nil, apperrors.Internal("database error")
 	}
 
 	return &ListResult{Destinations: destinations, Pagination: pagination}, nil
@@ -70,20 +78,20 @@ func (s *DestinationService) ListDestinations(ctx context.Context, filters ListF
 func (s *DestinationService) GetDestination(ctx context.Context, idStr string) (*models.Destination, []models.Review, error) {
 	id, err := primitive.ObjectIDFromHex(idStr)
 	if err != nil {
-		return nil, nil, errors.New("invalid destination ID")
+		return nil, nil, apperrors.BadRequest("invalid destination ID")
 	}
 
 	dest, err := s.destRepo.FindByID(ctx, id)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, nil, errors.New("destination not found")
+			return nil, nil, apperrors.NotFound("destination not found")
 		}
-		return nil, nil, errors.New("database error")
+		return nil, nil, apperrors.Internal("database error")
 	}
 
 	reviews, err := s.reviewRepo.FindByDestination(ctx, id)
 	if err != nil {
-		return nil, nil, errors.New("failed to fetch reviews")
+		return nil, nil, apperrors.Internal("failed to fetch reviews")
 	}
 
 	return &dest, reviews, nil
@@ -101,7 +109,7 @@ func (s *DestinationService) CreateDestination(ctx context.Context, input models
 
 	created, err := s.destRepo.Create(ctx, dest)
 	if err != nil {
-		return nil, errors.New("failed to create destination")
+		return nil, apperrors.Internal("failed to create destination")
 	}
 	return &created, nil
 }
@@ -109,7 +117,7 @@ func (s *DestinationService) CreateDestination(ctx context.Context, input models
 func (s *DestinationService) UpdateDestination(ctx context.Context, idStr string, input models.DestinationInput) error {
 	id, err := primitive.ObjectIDFromHex(idStr)
 	if err != nil {
-		return errors.New("invalid destination ID")
+		return apperrors.BadRequest("invalid destination ID")
 	}
 
 	update := bson.M{
@@ -121,9 +129,9 @@ func (s *DestinationService) UpdateDestination(ctx context.Context, idStr string
 
 	if err := s.destRepo.Update(ctx, id, update); err != nil {
 		if err == mongo.ErrNoDocuments {
-			return errors.New("destination not found")
+			return apperrors.NotFound("destination not found")
 		}
-		return errors.New("failed to update destination")
+		return apperrors.Internal("failed to update destination")
 	}
 	return nil
 }
@@ -131,14 +139,14 @@ func (s *DestinationService) UpdateDestination(ctx context.Context, idStr string
 func (s *DestinationService) DeleteDestination(ctx context.Context, idStr string) error {
 	id, err := primitive.ObjectIDFromHex(idStr)
 	if err != nil {
-		return errors.New("invalid destination ID")
+		return apperrors.BadRequest("invalid destination ID")
 	}
 
 	if err := s.destRepo.Delete(ctx, id); err != nil {
 		if err == mongo.ErrNoDocuments {
-			return errors.New("destination not found")
+			return apperrors.NotFound("destination not found")
 		}
-		return errors.New("failed to delete destination")
+		return apperrors.Internal("failed to delete destination")
 	}
 
 	s.reviewRepo.DeleteByDestination(ctx, id)

@@ -1,9 +1,7 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
-	"time"
 
 	"backend/models"
 	"backend/service"
@@ -20,9 +18,6 @@ func NewDestinationHandler(destService *service.DestinationService) *Destination
 }
 
 func (h *DestinationHandler) GetDestinations(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	filters := service.ListFilters{
 		Name:      c.Query("name"),
 		Country:   c.Query("country"),
@@ -31,9 +26,9 @@ func (h *DestinationHandler) GetDestinations(c *gin.Context) {
 		Limit:     c.DefaultQuery("limit", "10"),
 	}
 
-	result, err := h.destService.ListDestinations(ctx, filters)
+	result, err := h.destService.ListDestinations(c.Request.Context(), filters)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		handleError(c, err)
 		return
 	}
 
@@ -49,19 +44,9 @@ func (h *DestinationHandler) GetDestinations(c *gin.Context) {
 }
 
 func (h *DestinationHandler) GetDestination(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	dest, reviews, err := h.destService.GetDestination(ctx, c.Param("id"))
+	dest, reviews, err := h.destService.GetDestination(c.Request.Context(), c.Param("id"))
 	if err != nil {
-		switch err.Error() {
-		case "invalid destination ID":
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		case "destination not found":
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		}
+		handleError(c, err)
 		return
 	}
 
@@ -74,16 +59,13 @@ func (h *DestinationHandler) GetDestination(c *gin.Context) {
 func (h *DestinationHandler) CreateDestination(c *gin.Context) {
 	var input models.DestinationInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "code": "VALIDATION_ERROR"})
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	dest, err := h.destService.CreateDestination(ctx, input)
+	dest, err := h.destService.CreateDestination(c.Request.Context(), input)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		handleError(c, err)
 		return
 	}
 
@@ -93,22 +75,12 @@ func (h *DestinationHandler) CreateDestination(c *gin.Context) {
 func (h *DestinationHandler) UpdateDestination(c *gin.Context) {
 	var input models.DestinationInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "code": "VALIDATION_ERROR"})
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := h.destService.UpdateDestination(ctx, c.Param("id"), input); err != nil {
-		switch err.Error() {
-		case "invalid destination ID":
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		case "destination not found":
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		}
+	if err := h.destService.UpdateDestination(c.Request.Context(), c.Param("id"), input); err != nil {
+		handleError(c, err)
 		return
 	}
 
@@ -116,18 +88,8 @@ func (h *DestinationHandler) UpdateDestination(c *gin.Context) {
 }
 
 func (h *DestinationHandler) DeleteDestination(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := h.destService.DeleteDestination(ctx, c.Param("id")); err != nil {
-		switch err.Error() {
-		case "invalid destination ID":
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		case "destination not found":
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		}
+	if err := h.destService.DeleteDestination(c.Request.Context(), c.Param("id")); err != nil {
+		handleError(c, err)
 		return
 	}
 

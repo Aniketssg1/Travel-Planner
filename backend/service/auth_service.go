@@ -2,11 +2,11 @@ package service
 
 import (
 	"context"
-	"errors"
 	"os"
 	"regexp"
 	"time"
 
+	apperrors "backend/errors"
 	"backend/middleware"
 	"backend/models"
 	"backend/repository"
@@ -38,24 +38,24 @@ type LoginResult struct {
 
 func (s *AuthService) Register(ctx context.Context, input models.RegisterInput) (*RegisterResult, error) {
 	if !emailRegex.MatchString(input.Email) {
-		return nil, errors.New("invalid email format")
+		return nil, apperrors.BadRequest("invalid email format")
 	}
 
 	if len(input.Password) < 6 {
-		return nil, errors.New("password must be at least 6 characters")
+		return nil, apperrors.BadRequest("password must be at least 6 characters")
 	}
 
 	_, err := s.userRepo.FindByEmail(ctx, input.Email)
 	if err == nil {
-		return nil, errors.New("email already registered")
+		return nil, apperrors.Conflict("email already registered")
 	}
 	if err != mongo.ErrNoDocuments {
-		return nil, errors.New("database error")
+		return nil, apperrors.Internal("database error")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), 12)
 	if err != nil {
-		return nil, errors.New("failed to process password")
+		return nil, apperrors.Internal("failed to process password")
 	}
 
 	user := models.User{
@@ -68,7 +68,7 @@ func (s *AuthService) Register(ctx context.Context, input models.RegisterInput) 
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
-		return nil, errors.New("failed to create user")
+		return nil, apperrors.Internal("failed to create user")
 	}
 
 	return &RegisterResult{Message: "User registered successfully"}, nil
@@ -77,14 +77,14 @@ func (s *AuthService) Register(ctx context.Context, input models.RegisterInput) 
 func (s *AuthService) Login(ctx context.Context, input models.LoginInput) (*LoginResult, error) {
 	user, err := s.userRepo.FindByEmail(ctx, input.Email)
 	if err == mongo.ErrNoDocuments {
-		return nil, errors.New("invalid email or password")
+		return nil, apperrors.Unauthorized("invalid email or password")
 	}
 	if err != nil {
-		return nil, errors.New("database error")
+		return nil, apperrors.Internal("database error")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
-		return nil, errors.New("invalid email or password")
+		return nil, apperrors.Unauthorized("invalid email or password")
 	}
 
 	now := time.Now()
@@ -103,7 +103,7 @@ func (s *AuthService) Login(ctx context.Context, input models.LoginInput) (*Logi
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenStr, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 	if err != nil {
-		return nil, errors.New("failed to generate token")
+		return nil, apperrors.Internal("failed to generate token")
 	}
 
 	return &LoginResult{

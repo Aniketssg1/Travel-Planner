@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
-	"errors"
 	"time"
 
+	apperrors "backend/errors"
 	"backend/models"
 	"backend/repository"
 
@@ -30,12 +30,12 @@ type ItineraryResponse struct {
 func (s *ItineraryService) GetItineraries(ctx context.Context, userIDStr string) ([]ItineraryResponse, error) {
 	userID, err := primitive.ObjectIDFromHex(userIDStr)
 	if err != nil {
-		return nil, errors.New("invalid user ID")
+		return nil, apperrors.BadRequest("invalid user ID")
 	}
 
 	itineraries, err := s.itinRepo.FindByUser(ctx, userID)
 	if err != nil {
-		return nil, errors.New("database error")
+		return nil, apperrors.Internal("database error")
 	}
 
 	var enriched []ItineraryResponse
@@ -78,19 +78,19 @@ func (s *ItineraryService) GetItineraries(ctx context.Context, userIDStr string)
 func (s *ItineraryService) CreateItinerary(ctx context.Context, userIDStr string, input models.ItineraryInput) (*models.Itinerary, error) {
 	userID, err := primitive.ObjectIDFromHex(userIDStr)
 	if err != nil {
-		return nil, errors.New("invalid user ID")
+		return nil, apperrors.BadRequest("invalid user ID")
 	}
 
 	startDate, err := time.Parse("2006-01-02", input.StartDate)
 	if err != nil {
-		return nil, errors.New("invalid startDate format, use YYYY-MM-DD")
+		return nil, apperrors.BadRequest("invalid startDate format, use YYYY-MM-DD")
 	}
 	endDate, err := time.Parse("2006-01-02", input.EndDate)
 	if err != nil {
-		return nil, errors.New("invalid endDate format, use YYYY-MM-DD")
+		return nil, apperrors.BadRequest("invalid endDate format, use YYYY-MM-DD")
 	}
 	if endDate.Before(startDate) {
-		return nil, errors.New("endDate must be after startDate")
+		return nil, apperrors.BadRequest("endDate must be after startDate")
 	}
 
 	var destIDs []primitive.ObjectID
@@ -114,7 +114,7 @@ func (s *ItineraryService) CreateItinerary(ctx context.Context, userIDStr string
 
 	created, err := s.itinRepo.Create(ctx, itin)
 	if err != nil {
-		return nil, errors.New("failed to create itinerary")
+		return nil, apperrors.Internal("failed to create itinerary")
 	}
 	return &created, nil
 }
@@ -122,23 +122,23 @@ func (s *ItineraryService) CreateItinerary(ctx context.Context, userIDStr string
 func (s *ItineraryService) UpdateItinerary(ctx context.Context, itinIDStr, userIDStr string, input models.ItineraryInput) error {
 	itinID, err := primitive.ObjectIDFromHex(itinIDStr)
 	if err != nil {
-		return errors.New("invalid itinerary ID")
+		return apperrors.BadRequest("invalid itinerary ID")
 	}
 	userID, err := primitive.ObjectIDFromHex(userIDStr)
 	if err != nil {
-		return errors.New("invalid user ID")
+		return apperrors.BadRequest("invalid user ID")
 	}
 
 	startDate, err := time.Parse("2006-01-02", input.StartDate)
 	if err != nil {
-		return errors.New("invalid startDate format, use YYYY-MM-DD")
+		return apperrors.BadRequest("invalid startDate format, use YYYY-MM-DD")
 	}
 	endDate, err := time.Parse("2006-01-02", input.EndDate)
 	if err != nil {
-		return errors.New("invalid endDate format, use YYYY-MM-DD")
+		return apperrors.BadRequest("invalid endDate format, use YYYY-MM-DD")
 	}
 	if endDate.Before(startDate) {
-		return errors.New("endDate must be after startDate")
+		return apperrors.BadRequest("endDate must be after startDate")
 	}
 
 	var destIDs []primitive.ObjectID
@@ -161,9 +161,9 @@ func (s *ItineraryService) UpdateItinerary(ctx context.Context, itinIDStr, userI
 
 	if err := s.itinRepo.Update(ctx, itinID, userID, update); err != nil {
 		if err == mongo.ErrNoDocuments {
-			return errors.New("itinerary not found or access denied")
+			return apperrors.NotFound("itinerary not found or access denied")
 		}
-		return errors.New("failed to update itinerary")
+		return apperrors.Internal("failed to update itinerary")
 	}
 	return nil
 }
@@ -171,18 +171,18 @@ func (s *ItineraryService) UpdateItinerary(ctx context.Context, itinIDStr, userI
 func (s *ItineraryService) DeleteItinerary(ctx context.Context, itinIDStr, userIDStr string) error {
 	itinID, err := primitive.ObjectIDFromHex(itinIDStr)
 	if err != nil {
-		return errors.New("invalid itinerary ID")
+		return apperrors.BadRequest("invalid itinerary ID")
 	}
 	userID, err := primitive.ObjectIDFromHex(userIDStr)
 	if err != nil {
-		return errors.New("invalid user ID")
+		return apperrors.BadRequest("invalid user ID")
 	}
 
 	if err := s.itinRepo.Delete(ctx, itinID, userID); err != nil {
 		if err == mongo.ErrNoDocuments {
-			return errors.New("itinerary not found or access denied")
+			return apperrors.NotFound("itinerary not found or access denied")
 		}
-		return errors.New("failed to delete itinerary")
+		return apperrors.Internal("failed to delete itinerary")
 	}
 	return nil
 }

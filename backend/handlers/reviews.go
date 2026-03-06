@@ -1,9 +1,7 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
-	"time"
 
 	"backend/models"
 	"backend/repository"
@@ -26,13 +24,11 @@ func NewReviewHandler(reviewService *service.ReviewService, userRepo *repository
 func (h *ReviewHandler) SubmitReview(c *gin.Context) {
 	var input models.ReviewInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "code": "VALIDATION_ERROR"})
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
+	ctx := c.Request.Context()
 	userIDStr := c.GetString("userId")
 
 	userName := "User"
@@ -46,16 +42,7 @@ func (h *ReviewHandler) SubmitReview(c *gin.Context) {
 
 	review, err := h.reviewService.SubmitReviewWithUserName(ctx, c.Param("id"), userIDStr, userName, input)
 	if err != nil {
-		switch err.Error() {
-		case "invalid destination ID":
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		case "destination not found":
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		case "you have already reviewed this destination":
-			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		}
+		handleError(c, err)
 		return
 	}
 
@@ -63,12 +50,9 @@ func (h *ReviewHandler) SubmitReview(c *gin.Context) {
 }
 
 func (h *ReviewHandler) GetAllReviews(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	reviews, err := h.reviewService.GetAllReviews(ctx)
+	reviews, err := h.reviewService.GetAllReviews(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		handleError(c, err)
 		return
 	}
 
@@ -76,18 +60,8 @@ func (h *ReviewHandler) GetAllReviews(c *gin.Context) {
 }
 
 func (h *ReviewHandler) DeleteReview(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := h.reviewService.DeleteReview(ctx, c.Param("id")); err != nil {
-		switch err.Error() {
-		case "invalid review ID":
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		case "review not found":
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		}
+	if err := h.reviewService.DeleteReview(c.Request.Context(), c.Param("id")); err != nil {
+		handleError(c, err)
 		return
 	}
 
