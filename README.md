@@ -222,7 +222,3 @@ Request → Recovery → RequestID → RateLimit → Logger → Timeout → GZIP
 | `frontend` | Node → Nginx | 80 | `/health` |
 
 ---
-
-## 📝 License
-
-This project is for assessment purposes.
